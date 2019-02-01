@@ -1,30 +1,34 @@
 # -*- coding: utf-8 -*-
-import os
 import codecs
-import shutil
+import os
 import os.path
+import shutil
+
 from django import VERSION
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Group, Permission
+from django.core.cache import cache
 from django.db import models
 from django.db.models import Q
+from django.db.models.signals import post_save, pre_delete
 from django.db.utils import IntegrityError
-from django.conf import settings
+from django.dispatch import receiver
+from django.utils.encoding import python_2_unicode_compatible
+from django.utils.six import string_types
+from django.utils.translation import ugettext_lazy as _
+
+from docutils.utils import SystemMessage
+from waliki.settings import (WALIKI_CACHE_TIMEOUT, WALIKI_DATA_DIR,
+                             WALIKI_DEFAULT_MARKUP, WALIKI_MARKUPS_SETTINGS,
+                             get_slug, sanitize)
+
+from . import _markups
+
 if VERSION[:2] >= (1, 10):
     from django.urls import reverse
 else:
     from django.core.urlresolvers import reverse
-from django.dispatch import receiver
-from django.utils.six import string_types
-from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import python_2_unicode_compatible
-from django.contrib.auth.models import Permission, Group, AnonymousUser
-from django.contrib.auth import get_user_model
-from django.core.cache import cache
-from django.db.models.signals import post_save, pre_delete
-from docutils.utils import SystemMessage
-from . import _markups
-from waliki.settings import (get_slug, sanitize, WALIKI_DEFAULT_MARKUP,
-                             WALIKI_MARKUPS_SETTINGS, WALIKI_DATA_DIR,
-                             WALIKI_CACHE_TIMEOUT)
 
 @python_2_unicode_compatible
 class Page(models.Model):
@@ -120,7 +124,7 @@ class Page(models.Model):
 
     @staticmethod
     def preview(markup, text):
-        content = Page.get_markup_instance(markup).get_document_body(text)
+        content = Page.get_markup_instance(markup).convert(text).get_document_body()
         content= sanitize(content)
         return content
 
@@ -132,7 +136,7 @@ class Page(models.Model):
 
     def _get_part(self, part):
         try:
-            return getattr(self.markup_, part)(self.raw)
+            return getattr(self.markup_.convert(self.raw), part)
         except SystemMessage:
             return ''
 
@@ -158,7 +162,6 @@ class Page(models.Model):
 
         if cached_content is None:
             cached_content = self._get_part('get_document_body')
-            cached_content = sanitize(cached_content)
             cache.set(cache_key, cached_content, WALIKI_CACHE_TIMEOUT)
         return cached_content
 

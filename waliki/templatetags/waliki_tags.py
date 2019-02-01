@@ -1,14 +1,14 @@
-from django import VERSION
-from django import template
+from django import VERSION, template
+from django.utils.translation import ugettext_lazy as _
+from waliki import settings
+from waliki.acl import check_perms as check_perms_helper
+from waliki.forms import PageForm
+from waliki.models import Page
+
 if VERSION[:2] >= (1, 10):
     from django.urls import reverse
 else:
     from django.core.urlresolvers import reverse
-from django.utils.translation import ugettext_lazy as _
-from waliki.acl import check_perms as check_perms_helper
-from waliki.models import Page
-from waliki.forms import PageForm
-from waliki import settings
 
 
 register = template.Library()
@@ -169,7 +169,7 @@ def waliki_box(context, slug, show_edit=True, *args, **kwargs):
     }
 
 
-@register.assignment_tag
+@register.simple_tag
 def waliki_breadcrumbs(slug):
     if not settings.WALIKI_BREADCRUMBS:
         return None
